@@ -1,4 +1,6 @@
-
+// URL Web App dari Google Apps Script Anda
+const WEB_APP_URL =
+  "https://script.google.com/macros/s/AKfycbymfOgEn1Z1NnVhr7SOz_l3s15rA58bKouZF1Jw8ME8WSSkctfC4Qf8lyEPsWNELMDI/exec";
 // Logika Login
 function prosesLogin() {
   const user = document.getElementById("loginUser").value;
@@ -54,19 +56,43 @@ form.addEventListener("submit", (e) => {
       foto: fotoUrl,
     };
 
-    if (id) {
-      dataInventaris = dataInventaris.map((i) =>
-        i.id == id ? barang : i,
-      );
-    } else {
-      dataInventaris.push(barang);
-      const filtered = getFilteredData();
-      halamanAktif = Math.ceil((filtered.length + 1) / barisPerHalaman);
-    }
+    // Tampilkan indikator loading atau proses kirim (opsional)
+    document.getElementById("btnSubmit").textContent = "Menyimpan ke Cloud...";
+    document.getElementById("btnSubmit").disabled = true;
 
-    resetForm();
-    updateFilterTahun();
-    render();
+    // Kirim data ke Google Apps Script (Google Sheets)
+    fetch(WEB_APP_URL, {
+      method: "POST",
+      mode: "no-cors", // Diperlukan untuk menghindari masalah CORS pada Google Apps Script
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(barang),
+    })
+      .then(() => {
+        // Karena mode 'no-cors', respons detail tidak terbaca langsung,
+        // tapi data dipastikan terkirim ke Spreadsheet.
+        if (id) {
+          dataInventaris = dataInventaris.map((i) => (i.id == id ? barang : i));
+        } else {
+          dataInventaris.push(barang);
+          const filtered = getFilteredData();
+          halamanAktif = Math.ceil((filtered.length + 1) / barisPerHalaman);
+        }
+
+        resetForm();
+        updateFilterTahun();
+        render();
+        alert("Data berhasil disimpan ke Google Sheets!");
+      })
+      .catch((error) => {
+        console.error("Gagal menyimpan:", error);
+        alert("Terjadi kesalahan saat menyimpan data.");
+      })
+      .finally(() => {
+        document.getElementById("btnSubmit").textContent = "Simpan Data";
+        document.getElementById("btnSubmit").disabled = false;
+      });
   };
 
   if (fileInput.files.length > 0) {
@@ -78,6 +104,22 @@ form.addEventListener("submit", (e) => {
     alert("Silakan pilih foto barang terlebih dahulu!");
   }
 });
+// Fungsi untuk mengambil data dari Google Sheets saat pertama kali dibuka
+function ambilDataDariSheet() {
+  fetch(WEB_APP_URL)
+    .then((response) => response.json())
+    .then((data) => {
+      dataInventaris = data; // Masukkan data dari Sheets ke array lokal
+      updateFilterTahun();
+      render();
+    })
+    .catch((error) => {
+      console.error("Gagal memuat data dari Spreadsheet:", error);
+    });
+}
+
+// Panggil fungsi ini otomatis saat file script dijalankan/halaman dimuat
+ambilDataDariSheet();
 
 function resetForm() {
   form.reset();
@@ -85,8 +127,7 @@ function resetForm() {
   document.getElementById("formTitle").textContent = "📝 Tambah Barang";
   document.getElementById("btnSubmit").textContent = "Simpan Data";
   document.getElementById("btnCancel").classList.add("hidden");
-  document.getElementById("fileLabel").textContent =
-    "Belum ada file dipilih";
+  document.getElementById("fileLabel").textContent = "Belum ada file dipilih";
   fotoBaru = null;
 }
 
